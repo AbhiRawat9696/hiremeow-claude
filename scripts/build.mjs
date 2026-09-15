@@ -1,0 +1,11 @@
+import {mkdir,cp,readFile,writeFile,rm} from 'node:fs/promises';
+await rm('dist',{recursive:true,force:true});
+await mkdir('dist/server',{recursive:true});
+await mkdir('dist/.openai',{recursive:true});
+await cp('public','dist/client',{recursive:true});
+await cp('.openai/hosting.json','dist/.openai/hosting.json');
+const source=await readFile('server/worker.js','utf8');
+const html=await readFile('public/index.html','utf8');
+const knowledge=await readFile('public/assets/career-knowledge.js','utf8');
+await writeFile('dist/server/index.js',source.replace("import {QUESTIONS,SOURCES} from '../public/assets/career-knowledge.js';",()=>knowledge).replace("const APP_HTML = '';",()=>'const APP_HTML = '+JSON.stringify(html)+';'));
+console.log('HireMeow built: website, server chat endpoint, and hosting metadata.');

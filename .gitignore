@@ -1,0 +1,15 @@
+work/
+outputs/
+.sites-runtime/
+.vercel/
+node_modules/
+
+.env*
+!.env.example
+
+dist/
+.DS_Store
+backups/
+API keys.rtf
+*.rtf
+.env
