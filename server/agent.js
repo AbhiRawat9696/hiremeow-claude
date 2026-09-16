@@ -5,8 +5,10 @@
 // Every database call uses the student's own token, so Supabase RLS + triggers apply.
 import { HttpError } from './http.js';
 import { stopsBetween } from '../public/assets/platform/stations.js';
+import { matchJob, matchSentence } from '../public/assets/platform/skills-dict.js';
+import { fraudSignals, salaryStats } from './skills.js';
 
-const JOB_FIELDS = 'id,title,description,employment_type,location,bts_station,mrt_station,remote_ok,salary_min,salary_max,published_at,companies(id,name,industry,sponsors_visa,boi_promoted,company_health,response_rate)';
+const JOB_FIELDS = 'id,title,description,employment_type,location,bts_station,mrt_station,remote_ok,salary_min,salary_max,published_at,companies(id,name,industry,website,created_at,sponsors_visa,boi_promoted,company_health,response_rate)';
 const PROFILE_FIELDS = 'id,role,full_name,headline,nationality,university,field_of_study,grad_year,languages,visa_type,visa_expiry,career_goal,preferred_industries,skills,home_bts_station,home_mrt_station,open_to_offers,desired_salary_min,meow_score,pitch_video_id';
 const TYPES = ['full_time', 'part_time', 'internship', 'contract'];
 const STATUSES_ACTIVE = ['applied', 'viewed', 'shortlisted', 'interview', 'offer'];
@@ -44,25 +46,26 @@ const daysUntil = d => (d ? Math.ceil((Date.parse(d) - Date.now()) / DAY) : null
 export function scoreJob(job, profile, homeStation) {
   const text = `${job.title} ${job.description || ''} ${job.companies?.industry || ''}`.toLowerCase();
   const reasons = [];
-  let score = 0;
+  const fit = matchJob(job, profile);
+  let score = fit.percent;
   const skills = (profile?.skills || []).filter(s => text.includes(String(s).toLowerCase()));
-  if (skills.length) { score += Math.min(40, skills.length * 10); reasons.push('matches your skills: ' + skills.slice(0, 5).join(', ')); }
+  if (skills.length) reasons.push('matches your skills: ' + skills.slice(0, 5).join(', '));
   if ((profile?.preferred_industries || []).some(i => (job.companies?.industry || '').toLowerCase().includes(String(i).toLowerCase()))) { score += 15; reasons.push('in an industry you prefer'); }
-  if (profile?.desired_salary_min && job.salary_max >= profile.desired_salary_min) { score += 15; reasons.push('meets your salary target'); }
-  else if (profile?.desired_salary_min) { score -= 10; reasons.push('pays below your salary target'); }
+  if (profile?.desired_salary_min && job.salary_max >= profile.desired_salary_min) reasons.push('meets your salary target');
+  else if (profile?.desired_salary_min) reasons.push('pays below your salary target');
   if (job.companies?.sponsors_visa) { score += 15; reasons.push('offers visa support'); }
   const stops = homeStation ? Math.min(stopsBetween(homeStation, job.bts_station), stopsBetween(homeStation, job.mrt_station)) : Infinity;
-  if (Number.isFinite(stops)) { score += Math.max(0, 15 - stops); reasons.push(stops === 0 ? 'at your home station' : `${stops} stops from ${homeStation}`); }
+  if (Number.isFinite(stops)) { score += Math.max(0, 10 - stops); reasons.push(stops === 0 ? 'at your home station' : `${stops} stops from ${homeStation}`); }
   if (job.remote_ok) { score += 5; reasons.push('remote OK'); }
   if (job.companies?.company_health === 'red') { score -= 15; reasons.push('company health flagged as risky'); }
-  return { score, reasons, stops: Number.isFinite(stops) ? stops : null };
+  return { score, reasons, stops: Number.isFinite(stops) ? stops : null, fit };
 }
 
 const jobCard = (j, m) => ({
   id: j.id, title: j.title, company: j.companies?.name || null, type: j.employment_type, location: j.location,
   bts: j.bts_station, mrt: j.mrt_station, remote_ok: j.remote_ok, salary_min: j.salary_min, salary_max: j.salary_max,
   visa_support: Boolean(j.companies?.sponsors_visa), company_health: j.companies?.company_health || null,
-  ...(m ? { match_score: m.score, why: m.reasons, stops_from_home: m.stops } : {})
+  ...(m ? { match_score: m.score, match_percent: m.fit.percent, match_sentence: matchSentence(m.fit), skills_have: m.fit.have, skills_missing: m.fit.missing, why: m.reasons, stops_from_home: m.stops } : {})
 });
 
 export const TOOLS = [
@@ -78,6 +81,8 @@ export const TOOLS = [
     limit: { type: 'integer', description: 'Max results, 1-10' }
   }, additionalProperties: false } },
   { type: 'function', name: 'get_job', description: 'Get full details of one job by id.', parameters: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'], additionalProperties: false } },
+  { type: 'function', name: 'check_job_safety', description: 'Run HireMeow scam/fake-job checks on one job. Returns rule-based warning signs.', parameters: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'], additionalProperties: false } },
+  { type: 'function', name: 'salary_insight', description: 'Salary range from published HireMeow jobs whose title matches the role (monthly THB).', parameters: { type: 'object', properties: { role: { type: 'string' } }, required: ['role'], additionalProperties: false } },
   { type: 'function', name: 'list_my_applications', description: "List the student's applications with status and waiting time, pending offers, and visa-expiry warnings.", parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { type: 'function', name: 'propose_application', description: 'Prepare an application to a job with a short cover note. Does NOT send it: the student must press Confirm.', parameters: { type: 'object', properties: { job_id: { type: 'string' }, cover_note: { type: 'string', description: 'Up to 1500 characters, written from the student profile only' } }, required: ['job_id', 'cover_note'], additionalProperties: false } },
   { type: 'function', name: 'propose_profile_update', description: 'Prepare changes to the student profile. Does NOT save them: the student must press Confirm. Allowed keys: ' + Object.keys(PROFILE_RULES).join(', ') + '. Dates as YYYY-MM-DD; skills and preferred_industries as lists.', parameters: { type: 'object', properties: { changes: { type: 'object', description: 'Field name → new value' } }, required: ['changes'], additionalProperties: false } },
@@ -88,6 +93,12 @@ export const AGENT_INSTRUCTIONS = `You are Meow Agent, HireMeow's job-search age
 What you can do: find and rank HireMeow jobs, explain matches, draft and prepare applications, prepare profile updates, and track applications, offers and visa expiry.
 Rules:
 - Call get_my_profile before recommending jobs or writing a cover note, unless you already have it in this turn.
+- When you present a job, lead with its match_sentence (e.g. "87% match because you have React + 2 years. Missing: AWS"). Never make up a percentage.
+- For a cover note, call get_job first and tie 2-3 requirements from its description to the profile.
+- When list_my_applications shows needs_follow_up, offer to draft a short follow-up email and write it yourself in the reply (you can't send email).
+- If a job looks suspicious or the student asks, call check_job_safety; remind them real employers never charge applicants.
+- For pay questions call salary_insight; if it has fewer than 3 jobs, say HireMeow doesn't have enough data yet and give only a clearly labelled rough estimate.
+- Students may write in Thai (including voice transcripts like "หางาน marketing แถวสาทร เงินเดือน 30k"): understand it, map places to nearby BTS/MRT stations (e.g. Sathorn → Chong Nonsi or Surasak), and reply in Thai.
 - Only recommend jobs returned by search_jobs or get_job. Never invent jobs, companies, salaries or visa sponsorship. HireMeow listings are the only jobs you can see.
 - propose_* tools only PREPARE an action. Never say an application was sent or a profile was saved; say it is ready and ask the student to press Confirm on the card.
 - Prepare at most 3 actions per reply. Don't prepare an application the student didn't ask for.
@@ -143,6 +154,15 @@ export function createAgentTools(sb, token, user) {
       const j = await loadJob(job_id);
       const p = await profile();
       return { ...jobCard(j, scoreJob(j, p, p?.home_bts_station || p?.home_mrt_station)), description: (j.description || '').slice(0, 3000), industry: j.companies?.industry || null, already_applied: (await appliedJobIds()).has(j.id) };
+    },
+    async check_job_safety({ job_id }) {
+      const j = await loadJob(job_id);
+      const flags = fraudSignals(j);
+      return { job: j.title, company: j.companies?.name, warning_signs: flags, risk_hint: flags.length >= 3 ? 'high' : flags.length ? 'medium' : 'low', note: 'Rule-based checks only. Legitimate employers never ask applicants to pay.' };
+    },
+    async salary_insight({ role }) {
+      const stats = await salaryStats(sb, token, String(role || '').slice(0, 200));
+      return { role, hiremeow_jobs_counted: stats.count, ...stats, enough_data: stats.count >= 3 };
     },
     async list_my_applications() {
       const p = await profile();
