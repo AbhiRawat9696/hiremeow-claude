@@ -27,6 +27,7 @@ This is the owner's existing HireMeow website, a Thailand career companion for i
 - `public/assets/index-C--u-fTV.js`: compiled original React/runtime and legacy components; avoid wholesale formatting or replacement. Readable original TSX sources are not available.
 - `public/assets/platform/`: live platform (Supabase auth, jobs, company dashboard, Reverse Hiring, pitches, Meow Pool, admin, map, BTS/MRT stations).
 - `public/assets/meow-lab.js`, `meow-demos.js`, `profile-dashboard.js`: Meow Lab, demo previews, device-only notes.
+- AI features (see README §4b): `server/agent.js` (Meow Agent), `server/skills.js` (all structured AI tools + public job chat), `public/assets/platform/agent.js`, `studio.js` (AI Studio, job-card tools, portfolio page, Meow Copilot), `skills-dict.js` (deterministic match %). AI may only prepare actions; database writes happen after the user confirms. Keep fairness rules in screening prompts.
 - `server/app.js`: Vercel/Node API (config, chat, ai, Stripe, cron). `api/router.js` + `vercel.json` deploy it.
 - `server/jobs/`, `server/news/`, `server/mailer.js`: Ghosting Protection, Layoff Radar (mock news), mock email.
 - `supabase/schema.sql`, `supabase/seed.sql`: database, RLS, storage bucket. Business rules live in SQL triggers; keep UI and SQL in sync.
