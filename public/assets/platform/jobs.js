@@ -5,7 +5,7 @@ import { stationNames, stopsBetween, haversineKm } from './stations.js';
 const TYPES = [['full_time', 'Full-time'], ['part_time', 'Part-time'], ['internship', 'Internship'], ['contract', 'Contract']];
 const typeLabel = t => (TYPES.find(x => x[0] === t) || [t, t])[1];
 
-export function createJobs(React, ui, maps) {
+export function createJobs(React, ui, maps, studio) {
   const h = React.createElement;
 
   function ApplyForm({ job, platform, onDone, onOpenAuth }) {
@@ -35,7 +35,7 @@ export function createJobs(React, ui, maps) {
       h('button', { type: 'submit', className: 'lab-btn', disabled: busy || msg?.tone === 'good' }, busy ? 'Sending…' : 'Apply now'));
   }
 
-  function JobCard({ job, platform, applied, distance, selected, onSelect, onApplied, onOpenAuth }) {
+  function JobCard({ job, platform, applied, distance, selected, onSelect, onApplied, onOpenAuth, onNavigate }) {
     const c = job.companies || {};
     const [open, setOpen] = React.useState(false);
     React.useEffect(() => { if (selected) setOpen(true); }, [selected]);
@@ -59,10 +59,11 @@ export function createJobs(React, ui, maps) {
         job.description && h('p', { className: 'pf-pre' }, job.description),
         c.health_note && h('p', { className: 'lab-tiny' }, 'Company news: ' + c.health_note),
         h('p', { className: 'lab-tiny' }, 'Posted ' + fmtDate(job.published_at)),
+        studio && h(studio.JobAiTools, { job, platform, onOpenAuth, onNavigate }),
         applied ? h(ui.Notice, { tone: 'good' }, 'You applied to this job.') : h(ApplyForm, { job, platform, onDone: onApplied, onOpenAuth })));
   }
 
-  function JobsBoard({ platform, onOpenAuth }) {
+  function JobsBoard({ platform, onOpenAuth, onNavigate }) {
     const [jobs, setJobs] = React.useState(null);
     const [error, setError] = React.useState('');
     const [applied, setApplied] = React.useState(new Set());
@@ -143,7 +144,7 @@ export function createJobs(React, ui, maps) {
       h('div', { className: 'pf-jobs-layout pf-view-' + view },
         view !== 'map' && h('div', { className: 'pf-job-list' },
           jobs && !rows.length ? h(ui.Empty, { icon: '🐾' }, jobs.length ? 'No jobs match these filters. Try more stops or a lower salary.' : 'No jobs are published yet. Companies can post one from the Companies tab.') : null,
-          ...rows.map(r => h(JobCard, { key: r.job.id, job: r.job, platform, distance: r.distance, applied: applied.has(r.job.id), selected: selected === r.job.id, onSelect: setSelected, onApplied: load, onOpenAuth }))),
+          ...rows.map(r => h(JobCard, { key: r.job.id, job: r.job, platform, distance: r.distance, applied: applied.has(r.job.id), selected: selected === r.job.id, onSelect: setSelected, onApplied: load, onOpenAuth, onNavigate }))),
         view !== 'list' && h(maps.JobsMap, { points, onSelect: select, me, height: view === 'map' ? 520 : 460 })));
   }
 
