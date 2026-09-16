@@ -7,14 +7,16 @@ import { createJobs } from './jobs.js';
 import { createCompany } from './company.js';
 import { createStudent } from './student.js';
 import { createPool } from './pool.js';
+import { createStudio } from './studio.js';
 
 export function createPlatform(React) {
   const h = React.createElement;
   const ui = createUi(React);
   const auth = createAuth(React, ui);
   const maps = createMap(React);
-  const jobs = createJobs(React, ui, maps);
-  const company = createCompany(React, ui, maps, jobs);
+  const studio = createStudio(React, ui);
+  const jobs = createJobs(React, ui, maps, studio);
+  const company = createCompany(React, ui, maps, jobs, studio);
   const student = createStudent(React, ui);
   const pool = createPool(React, ui);
   const usePlatform = makeUsePlatform(React);
@@ -42,5 +44,5 @@ export function createPlatform(React) {
       h('div', { className: 'lab-row' }, h('button', { type: 'button', className: 'lab-btn', onClick: () => onOpenAuth('student') }, 'Sign in or join')));
   }
 
-  return { ui, usePlatform, AuthDialog: auth.AuthDialog, AccountButton: auth.AccountButton, applyPendingRole: auth.applyPendingRole, JobsBoard: jobs.JobsBoard, CompanyDashboard: company.CompanyDashboard, CompaniesLanding, StudentHub: student.StudentHub, MeowPool: pool.MeowPool, AdminPanel: pool.AdminPanel, SignInPrompt };
+  return { ui, usePlatform, AuthDialog: auth.AuthDialog, AccountButton: auth.AccountButton, applyPendingRole: auth.applyPendingRole, JobsBoard: jobs.JobsBoard, CompanyDashboard: company.CompanyDashboard, CompaniesLanding, StudentHub: student.StudentHub, MeowPool: pool.MeowPool, AdminPanel: pool.AdminPanel, SignInPrompt, Studio: studio.Studio, PortfolioPage: studio.PortfolioPage };
 }
