@@ -11,3 +11,4 @@ $P -U postgres -d hm_test -f ../seed.sql >/dev/null
 $P -U postgres -d hm_test -f fixtures.sql >/dev/null
 $P -U authenticator -d hm_test -f rls-test.sql 2>&1 | grep -E "NOTICE|ERROR" || true
 $P -U authenticator -d hm_test -f rls-test-2.sql 2>&1 | grep -E "NOTICE|ERROR" || true
+$P -U authenticator -d hm_test -f rls-test-3.sql 2>&1 | grep -E "NOTICE|ERROR" || true
