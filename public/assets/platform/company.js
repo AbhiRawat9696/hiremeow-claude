@@ -2,13 +2,13 @@
 import { getClient, friendlyError, fmtDate, baht, refreshProfile } from './client.js';
 import { stationNames } from './stations.js';
 
-const EMPTY_JOB = { title: '', description: '', employment_type: 'full_time', location: '', bts_station: '', mrt_station: '', remote_ok: false, salary_min: '', salary_max: '', lat: null, lng: null };
+const EMPTY_JOB = { title: '', description: '', employment_type: 'full_time', location: '', bts_station: '', mrt_station: '', remote_ok: false, salary_min: '', salary_max: '', lat: null, lng: null, candidate_faq: '' };
 const PIPELINE = ['applied', 'viewed', 'shortlisted', 'interview', 'offer', 'rejected'];
 const INDUSTRIES = ['Tech', 'Business', 'Manufacturing', 'Hospitality', 'Education', 'Healthcare', 'Finance', 'Startup'];
 const clean = o => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, v === null ? (k === 'lat' || k === 'lng' ? null : '') : v]));
 const num = v => (v === '' || v === null || v === undefined ? null : Math.round(Number(v)));
 
-export function createCompany(React, ui, maps, jobsMod) {
+export function createCompany(React, ui, maps, jobsMod, studio) {
   const h = React.createElement;
   const BTS = stationNames('BTS'), MRT = stationNames('MRT');
 
@@ -61,7 +61,7 @@ export function createCompany(React, ui, maps, jobsMod) {
         if (status === 'published' && !hasSalary) throw new Error('Hiding Treats 🐟: add a salary range before publishing.');
         if (!orderOk) throw new Error('The maximum salary must be at least the minimum.');
         const sb = await getClient();
-        const row = { company_id: company.id, title: f.title.trim(), description: f.description.trim() || null, employment_type: f.employment_type, location: f.location.trim() || null, bts_station: f.bts_station || null, mrt_station: f.mrt_station || null, remote_ok: f.remote_ok, salary_min: num(f.salary_min), salary_max: num(f.salary_max), lat: f.lat, lng: f.lng, status };
+        const row = { company_id: company.id, title: f.title.trim(), description: f.description.trim() || null, employment_type: f.employment_type, location: f.location.trim() || null, bts_station: f.bts_station || null, mrt_station: f.mrt_station || null, remote_ok: f.remote_ok, salary_min: num(f.salary_min), salary_max: num(f.salary_max), lat: f.lat, lng: f.lng, status, candidate_faq: (f.candidate_faq || '').trim() || null };
         const q = job?.id ? sb.from('jobs').update(row).eq('id', job.id).select().single() : sb.from('jobs').insert(row).select().single();
         const { data, error } = await q; if (error) throw error;
         onSaved(data, status === 'published' ? 'Published! It’s live on the Jobs board.' : 'Saved as draft.');
@@ -69,6 +69,7 @@ export function createCompany(React, ui, maps, jobsMod) {
     };
     return h('form', { className: 'pf-card pf-form', onSubmit: e => { e.preventDefault(); save('published'); } },
       h('div', { className: 'lab-row lab-between' }, h('h3', null, job?.id ? 'Edit job' : 'Post a job'), h(ui.Salary, { min: hasSalary && f.salary_min, max: hasSalary && f.salary_max })),
+      studio && h(studio.JdWriter, { onApply: r => setF(prev => ({ ...prev, title: r.title, employment_type: r.employment_type, description: r.description, salary_min: r.salary_min || prev.salary_min, salary_max: r.salary_max || prev.salary_max, candidate_faq: r.candidate_faq || prev.candidate_faq })) }),
       h('div', { className: 'pd-grid' },
         h(ui.Field, { id: 'job-title', label: 'Job title' }, h(ui.Input, { id: 'job-title', value: f.title, onChange: set('title'), required: true, maxLength: 140 })),
         h(ui.Field, { id: 'job-type', label: 'Type' }, h(ui.Select, { id: 'job-type', value: f.employment_type, onChange: set('employment_type'), options: jobsMod.TYPES })),
@@ -78,6 +79,7 @@ export function createCompany(React, ui, maps, jobsMod) {
         h(ui.Field, { id: 'job-bts', label: 'BTS station' }, h(ui.Select, { id: 'job-bts', value: f.bts_station, onChange: set('bts_station'), options: BTS, placeholder: company.bts_station ? `Company default: ${company.bts_station}` : 'None' })),
         h(ui.Field, { id: 'job-mrt', label: 'MRT station' }, h(ui.Select, { id: 'job-mrt', value: f.mrt_station, onChange: set('mrt_station'), options: MRT, placeholder: company.mrt_station ? `Company default: ${company.mrt_station}` : 'None' }))),
       h(ui.Field, { id: 'job-desc', label: 'Description' }, h(ui.TextArea, { id: 'job-desc', value: f.description, onChange: set('description'), rows: 5, maxLength: 6000 })),
+      h(ui.Field, { id: 'job-faq', label: 'Candidate FAQ (powers the 24/7 candidate chatbot)', hint: 'Team size, remote policy, hiring process, benefits… Replace anything marked [confirm]. Shown publicly with the job.' }, h(ui.TextArea, { id: 'job-faq', value: f.candidate_faq, onChange: set('candidate_faq'), rows: 4, maxLength: 3000, placeholder: 'Team: 8 people · Hybrid, 2 days remote · Process: call → task → final interview (2 weeks)' })),
       h('label', { className: 'demo-check', htmlFor: 'job-remote' }, h('input', { type: 'checkbox', id: 'job-remote', checked: f.remote_ok, onChange: e => set('remote_ok')(e.target.checked) }), 'Remote work possible'),
       h('details', null, h('summary', null, 'Pin a different location for this job (optional)'), h(maps.PinPicker, { value: { lat: f.lat, lng: f.lng }, onChange: pos => setF(prev => ({ ...prev, ...pos })) })),
       !hasSalary && h(ui.Notice, { tone: 'warn' }, h('strong', null, 'Hiding Treats 🐟 '), 'HireMeow only publishes jobs with a salary range. You can still save a draft.'),
@@ -217,7 +219,7 @@ export function createCompany(React, ui, maps, jobsMod) {
     React.useEffect(() => { load(); }, [load]);
     if (company === undefined) return h('p', null, 'Loading your company…');
     if (!company) return h(CompanyForm, { userId: platform.user.id, onSaved: c => { setCompany(c); refreshProfile(); } });
-    const tabs = [['jobs', `Jobs (${jobs.length})`], ['applicants', 'Applicants'], ['talent', 'Reverse Hiring'], ['profile', 'Company profile']];
+    const tabs = [['jobs', `Jobs (${jobs.length})`], ['applicants', 'Applicants'], ['talent', 'Reverse Hiring'], ['copilot', '🤖 Meow Copilot'], ['profile', 'Company profile']];
     return h('div', { className: 'pf-stack' },
       h('div', { className: 'pf-card pf-company-head' },
         h('div', null, h('h2', null, company.name), h('p', { className: 'pf-muted' }, [company.industry, company.bts_station && 'BTS ' + company.bts_station, company.mrt_station && 'MRT ' + company.mrt_station].filter(Boolean).join(' · '))),
@@ -237,6 +239,7 @@ export function createCompany(React, ui, maps, jobsMod) {
             h('button', { type: 'button', className: 'lab-btn-ghost pd-small', onClick: () => setEditing(j) }, 'Edit')))))),
       tab === 'applicants' && sb && h(Applicants, { company, jobs, sb }),
       tab === 'talent' && sb && h(ReverseHiring, { company, jobs, sb }),
+      tab === 'copilot' && sb && studio && h(studio.Copilot, { jobs: jobs.filter(j => j.status !== 'closed'), sb }),
       tab === 'profile' && h(CompanyForm, { company, userId: platform.user.id, onSaved: c => { setCompany(c); setMsg({ tone: 'good', text: 'Saved.' }); } }));
   }
 
