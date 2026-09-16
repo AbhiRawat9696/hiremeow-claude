@@ -6,8 +6,10 @@ const STARTERS = [
   'Find jobs that match my profile',
   'What’s the status of my applications?',
   'Find internships near my BTS station with visa support',
-  'Update my skills to: '
+  'Update my skills to: ',
+  'หางาน marketing แถวสาทร เงินเดือน 30k'
 ];
+const SR = () => (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) || null;
 const TYPE = { full_time: 'Full-time', part_time: 'Part-time', internship: 'Internship', contract: 'Contract' };
 
 export function createAgent(React) {
@@ -62,6 +64,10 @@ export function createAgent(React) {
     const listRef = React.useRef(null);
     const inputRef = React.useRef(null);
     const ctrl = React.useRef(null);
+    const recRef = React.useRef(null);
+    const [listening, setListening] = React.useState(false);
+    const [voiceLang, setVoiceLang] = React.useState('th-TH');
+    React.useEffect(() => () => recRef.current?.abort?.(), []);
 
     React.useEffect(() => {
       if (!open || !platform.live) return;
@@ -96,6 +102,17 @@ export function createAgent(React) {
         if (e.name !== 'AbortError') setItems(list => [...list, { role: 'error', text: friendlyError(e) }]);
       } finally { setBusy(false); ctrl.current = null; }
     };
+    const listen = () => {
+      const R = SR(); if (!R) return;
+      if (listening) { recRef.current?.stop(); return; }
+      const rec = new R(); recRef.current = rec;
+      rec.lang = voiceLang; rec.interimResults = true; rec.continuous = false;
+      let finalText = '';
+      rec.onresult = e => { const t = [...e.results].map(r => r[0].transcript).join(' '); setText(t); if (e.results[e.results.length - 1].isFinal) finalText = t; };
+      rec.onerror = () => setListening(false);
+      rec.onend = () => { setListening(false); if (finalText.trim()) send(finalText); };
+      rec.start(); setListening(true);
+    };
     const noteDone = (p, r) => setItems(list => [...list, { role: 'system', text: `✓ ${r.message}` }]);
 
     const body = () => {
@@ -115,7 +132,10 @@ export function createAgent(React) {
           busy && h('div', { className: 'ma-msg ma-assistant' }, h('p', { className: 'ma-typing' }, 'Meow is working', h('span', null, '…')))),
         h('form', { className: 'ma-form', onSubmit: e => { e.preventDefault(); send(); } },
           h('label', { htmlFor: 'ma-input', className: 'hm-visually-hidden' }, 'Message Meow Agent'),
-          h('textarea', { id: 'ma-input', ref: inputRef, value: text, rows: 2, maxLength: 2000, placeholder: 'e.g. Find full-time data jobs near Asok paying 35,000+', onChange: e => setText(e.target.value), onKeyDown: e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } }),
+          SR() && h('div', { className: 'ma-voice' },
+            h('button', { type: 'button', className: 'ma-mic' + (listening ? ' on' : ''), onClick: listen, disabled: busy, 'aria-pressed': listening, 'aria-label': listening ? 'Stop voice input' : 'Speak your request' }, listening ? '⏹' : '🎤'),
+            h('button', { type: 'button', className: 'ma-lang', onClick: () => setVoiceLang(l => (l === 'th-TH' ? 'en-US' : 'th-TH')), 'aria-label': 'Voice language', title: 'Voice language' }, voiceLang === 'th-TH' ? 'ไทย' : 'EN')),
+          h('textarea', { id: 'ma-input', ref: inputRef, value: text, rows: 2, maxLength: 2000, placeholder: listening ? 'Listening… speak now' : 'e.g. Find remote jobs under 50k, or tap 🎤 and speak Thai', onChange: e => setText(e.target.value), onKeyDown: e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } }),
           busy ? h('button', { type: 'button', className: 'ma-cancel', onClick: () => ctrl.current?.abort() }, 'Stop')
             : h('button', { type: 'submit', className: 'ma-confirm', disabled: !text.trim() }, 'Send')),
         h('p', { className: 'ma-foot' }, 'Uses OpenAI with your profile and HireMeow data. Nothing is sent to employers until you press Confirm. ',
