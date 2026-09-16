@@ -4,6 +4,7 @@ import { json, HttpError, readJson, sameOrigin, bearer } from './http.js';
 import { createSupabase, currentUser } from './supabase.js';
 import { handleChat } from './worker.js';
 import { generate, rateLimit } from './ai.js';
+import { runAgent, createAgentTools, confirmAction } from './agent.js';
 import { createPoolCheckout, verifyStripeEvent, retrieveCheckout } from './stripe.js';
 import { runGhostingCheck } from './jobs/ghosting.js';
 import { runCompanyHealth } from './jobs/company-health.js';
@@ -88,6 +89,28 @@ export async function handle(request, rawEnv, deps = {}) {
         rateLimit('ai:' + u.id);
         const body = await readJson(request, 120000);
         return json(await generate(env, { messages: body.messages, format: body.format === 'json' ? 'json' : 'text' }, fetchImpl));
+      }
+
+      case '/api/agent/status': {
+        const u = await user().catch(() => null);
+        const ready = Boolean(env.openaiKey) && hasSupabase(env);
+        return json({ available: ready && u?.role === 'student', signInRequired: ready && !u, studentOnly: ready && Boolean(u) && u.role !== 'student' });
+      }
+      case '/api/agent': {
+        if (method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        const u = await requireUser();
+        if (u.role !== 'student') throw new HttpError(403, 'Meow Agent is for student accounts.');
+        rateLimit('agent:' + u.id, 10);
+        const body = await readJson(request, 60000);
+        return json(await runAgent(env, { messages: body.messages, tools: createAgentTools(sb, token, u) }, fetchImpl));
+      }
+      case '/api/agent/confirm': {
+        if (method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        const u = await requireUser();
+        if (u.role !== 'student') throw new HttpError(403, 'Meow Agent is for student accounts.');
+        rateLimit('agent-confirm:' + u.id, 20);
+        const body = await readJson(request, 10000);
+        return json(await confirmAction(sb, token, u, body.action));
       }
 
       case '/api/stripe/checkout': {
