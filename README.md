@@ -83,6 +83,18 @@ Other commands:
 - `npm run cron:ghosting` / `npm run cron:health`: run the scheduled jobs against your Supabase project.
 - `npm run seed:sql`: regenerate `supabase/seed.sql` after editing `public/assets/platform/stations.js`.
 
+## 4b. AI features (Meow Agent, AI Studio, Meow Copilot)
+
+All AI runs on the server with `OPENAI_API_KEY` (model `OPENAI_MODEL`, default `gpt-5-mini`), using the signed-in user's own Supabase token, so Row Level Security still decides what each person can see. Run `supabase/migrations/2026-09-16-ai-features.sql` once (it is also at the end of `schema.sql`).
+
+- **Meow Agent** (`server/agent.js`, `public/assets/platform/agent.js`): floating chat for students. Finds and ranks jobs with a computed match % ("73% match because you have React… Missing: AWS"), prepares applications, profile updates and withdrawals (the student must press Confirm), tracks applications and visa expiry, checks job safety, gives salary ranges, and accepts Thai or English voice input.
+- **AI Studio** for students (`public/assets/platform/studio.js`, in Meow Lab): Smart Job Match, 1-Click Resume Tailor (paste or PDF), cover letter from the job ad, Purr-fect Intro (EN + TH), Interview Simulator (voice in Chrome/Edge/Safari), Meow Score (9 lives), Roast My Resume, application tracker with follow-up drafts, salary insight, offer negotiation (EN + TH scripts), career path, fake-job detector and a public portfolio page (`/?portfolio=<slug>`).
+- **Job cards**: match %, safety check, and a public 24/7 candidate chatbot (`/api/job-chat`) that answers only from the job ad and the recruiter's Candidate FAQ.
+- **Meow Copilot** for companies: ✨ Write with AI in the job editor (JD + salary suggestion + FAQ), AI Screener (HireMeow applicants plus up to 500 uploaded PDF/.txt resumes, Top 20 + CSV) and Talent Pool Miner. Screening prompts exclude nationality, age, gender, religion and photos.
+- Salary numbers come from published HireMeow jobs; with fewer than 3 matches the UI labels them as an AI estimate.
+- `server/skills.js` holds every AI tool (`POST /api/skill {skill, input}`), each with a strict JSON schema. Tests: `tests/agent.test.mjs`, `tests/skills.test.mjs`, `supabase/test/rls-test-3.sql`.
+- Not built yet (need extra accounts): paid Auto Apply / Recruiter Copilot plans (Stripe billing), LINE / WhatsApp chat, interview scheduling with real invites, video resume analysis.
+
 ## 5. Deploy to Vercel
 
 1. Push this folder to a GitHub repository. `.env` is git-ignored.
