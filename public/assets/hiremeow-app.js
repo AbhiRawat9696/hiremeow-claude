@@ -1,4 +1,5 @@
 import {createPlatform} from './platform/index.js';
+import {createAgent} from './platform/agent.js';
 import {createMeowLab} from './meow-lab.js';
 import {createProfileDashboard} from './profile-dashboard.js';
 const CAT_ORANGE='#f4a24c',CAT_DARK='#d9772b',CAT_CREAM='#fff1dc',CAT_INK='#1d2a5c';
@@ -63,6 +64,7 @@ export function createHireMeowApp(React, components) {
  const ProfileDashboard=createProfileDashboard(React);
  const MeowLab=createMeowLab(React);
  const P=createPlatform(React);
+ const {MeowAgent}=createAgent(React);
  const h=React.createElement;
  const {VisaAdvisor,ResumeChecker,EmployerDirectory,UniversityDashboard,HRDashboard,LanguagePicker,translations}=components;
  return function HireMeowApp(){
@@ -170,6 +172,7 @@ export function createHireMeowApp(React, components) {
    
    view==='university'&&h('main',{id:'tool-section',className:'hm-dashboard'},h('div',{className:'hm-dashboard-heading'},h('p',{className:'hm-eyebrow'},'HIREMEOW PARTNERS'),h('h1',null,'Help talent take the next step.')),h(UniversityDashboard)),
    h('footer',{className:'hm-footer'},h('div',null,h('strong',null,'🐾 HireMeow'),h('span',null,'A little guidance. A world of possibility.')),h('p',null,'General career and visa guidance. Confirm current requirements with the relevant Thai authority. Employer directory and partner dashboard records are demonstration data; sponsorship is not guaranteed.'),h('nav',{className:'hm-footer-links','aria-label':'Footer'},...[['jobs','Jobs'],['lab','Meow Lab'],['companies','For companies'],['pool','Meow Pool']].map(([id,l])=>h('button',{key:id,type:'button',onClick:()=>{setView(id);window.scrollTo({top:0});}},l)))),
+   h(MeowAgent,{platform,onOpenAuth:openAuth,onNavigate:v=>{open(v,false);window.scrollTo({top:0});}}),
    authRole&&h(P.AuthDialog,{initialRole:authRole,onClose:()=>setAuthRole(null)})
   );
  };
