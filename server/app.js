@@ -5,6 +5,7 @@ import { createSupabase, currentUser } from './supabase.js';
 import { handleChat } from './worker.js';
 import { generate, rateLimit } from './ai.js';
 import { runAgent, createAgentTools, confirmAction } from './agent.js';
+import { runSkill, jobChat, SKILL_DEFS } from './skills.js';
 import { createPoolCheckout, verifyStripeEvent, retrieveCheckout } from './stripe.js';
 import { runGhostingCheck } from './jobs/ghosting.js';
 import { runCompanyHealth } from './jobs/company-health.js';
@@ -29,6 +30,8 @@ function stripClientIdentity(request) {
   for (const key of [...headers.keys()]) if (key.startsWith('oai-authenticated-user')) headers.delete(key);
   return headers;
 }
+
+const clientIp = request => (request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
 
 export async function handle(request, rawEnv, deps = {}) {
   const env = readEnv(rawEnv);
@@ -111,6 +114,22 @@ export async function handle(request, rawEnv, deps = {}) {
         rateLimit('agent-confirm:' + u.id, 20);
         const body = await readJson(request, 10000);
         return json(await confirmAction(sb, token, u, body.action));
+      }
+
+      case '/api/skill': {
+        if (method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        const u = await requireUser();
+        const body = await readJson(request, 12_000_000);
+        const def = SKILL_DEFS[body.skill];
+        rateLimit('skill:' + u.id, def?.roles?.includes('company') && body.skill === 'screen' ? 40 : 15);
+        return json({ result: await runSkill(env, sb, token, u, body.skill, body.input, fetchImpl) });
+      }
+      case '/api/job-chat': {
+        if (method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        if (!env.openaiKey) throw new HttpError(503, 'Live AI is not connected.', 'not_configured');
+        rateLimit('jobchat:' + clientIp(request), 12);
+        const body = await readJson(request, 20000);
+        return json({ result: await jobChat(env, sb, body, fetchImpl) });
       }
 
       case '/api/stripe/checkout': {
