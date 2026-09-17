@@ -528,3 +528,22 @@ textarea.lab-input{resize:vertical}
 .pt h2{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#6b7699;margin:0 0 8px}
 .pt-item{margin:0 0 12px}.pt-item h3{font-size:16px;margin:0}.pt-item h3 span{font-weight:500;color:#4a557f}.pt-item small{color:#6b7699}.pt-item p{margin:4px 0 0}
 .pt-foot{text-align:center;margin-top:18px;font-size:13px}.pt-foot a{color:var(--hm-blue);font-weight:700}
+
+/* Profile pickers */
+.pf-field:has(.pk-many),.pf-field:has(.pk-langs){grid-column:1/-1}
+.pk-one{display:flex;flex-direction:column;gap:6px}
+.pk-many{position:relative;display:flex;flex-direction:column;gap:8px}
+.pk-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pk-chip{display:inline-flex;align-items:center;gap:4px;background:#e8eefb;color:var(--hm-ink);border-radius:999px;padding:4px 6px 4px 11px;font-size:13px;font-weight:600}
+.pk-chip button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;line-height:1;font-size:14px!important;color:#4a557f}
+.pk-list{position:absolute;top:100%;left:0;right:0;z-index:30;margin-top:4px;background:#fff;border:1px solid var(--hm-border);border-radius:12px;box-shadow:0 16px 40px #1b2a6b26;max-height:320px;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:8px}
+.pk-group p{margin:0 0 4px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7699}
+.pk-group div{display:flex;flex-wrap:wrap;gap:6px}
+.pk-group button,.pk-add{border:1px solid var(--hm-border);background:#f6f8fd;border-radius:999px;padding:5px 10px;font-size:13px!important;font-weight:500;color:var(--hm-ink)}
+.pk-group button:hover,.pk-group button:focus-visible{background:#e8eefb;border-color:var(--hm-blue)}
+.pk-add{align-self:flex-start;background:#fff4e6;border-color:#f6c48f;font-weight:700}
+.pk-done{position:sticky;bottom:0;align-self:flex-end;border:0;background:var(--hm-ink);color:#fff;border-radius:10px;padding:6px 14px;font-size:13px!important;font-weight:700}
+.pk-langs{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.pk-lang{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:start;width:100%}
+.pk-x{border:1px solid var(--hm-border);background:#fff;border-radius:10px;width:40px;height:42px;font-size:18px!important;color:#4a557f}
+@media(max-width:560px){.pk-lang{grid-template-columns:1fr auto}.pk-lang>select{grid-column:1}.pk-lang .pk-x{grid-row:1;grid-column:2}}
