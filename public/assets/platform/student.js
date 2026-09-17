@@ -1,6 +1,7 @@
 // Student hub (signed-in): profile, Open to offers, 1-Minute Meow Pitch, offers inbox, application timeline.
 import { getClient, friendlyError, fmtDate, baht, refreshProfile } from './client.js';
 import { stationNames } from './stations.js';
+import { createPickers, NATIONALITY_GROUPS, UNIVERSITIES, FIELDS, SKILL_GROUPS, VISAS, gradYears, parseLanguages, formatLanguages } from './profile-options.js';
 
 const MAX_SECONDS = 60;
 const INDUSTRIES = ['Tech', 'Business', 'Manufacturing', 'Hospitality', 'Education', 'Healthcare', 'Finance', 'Startup'];
@@ -23,9 +24,11 @@ function videoDuration(blob) {
 export function createStudent(React, ui) {
   const h = React.createElement;
   const BTS = stationNames('BTS'), MRT = stationNames('MRT');
+  const { PickOne, PickMany, LanguagePicker } = createPickers(React);
+  const YEARS = gradYears();
 
   function ProfileCard({ profile, onSaved }) {
-    const pick = p => ({ full_name: p.full_name || '', headline: p.headline || '', nationality: p.nationality || '', university: p.university || '', field_of_study: p.field_of_study || '', grad_year: p.grad_year || '', languages: p.languages || '', visa_type: p.visa_type || '', visa_expiry: p.visa_expiry || '', career_goal: p.career_goal || '', home_bts_station: p.home_bts_station || '', home_mrt_station: p.home_mrt_station || '', desired_salary_min: p.desired_salary_min || '', skills: (p.skills || []).join(', '), preferred_industries: p.preferred_industries || [] });
+    const pick = p => ({ full_name: p.full_name || '', headline: p.headline || '', nationality: p.nationality || '', university: p.university || '', field_of_study: p.field_of_study || '', grad_year: p.grad_year || '', languages: parseLanguages(p.languages), visa_type: p.visa_type || '', visa_expiry: p.visa_expiry || '', career_goal: p.career_goal || '', home_bts_station: p.home_bts_station || '', home_mrt_station: p.home_mrt_station || '', desired_salary_min: p.desired_salary_min || '', skills: p.skills || [], preferred_industries: p.preferred_industries || [] });
     const [f, setF] = React.useState(() => pick(profile));
     const [editing, setEditing] = React.useState(!profile.full_name || !profile.university);
     const [busy, setBusy] = React.useState(false);
@@ -38,9 +41,9 @@ export function createStudent(React, ui) {
         const blank = v => (String(v).trim() === '' ? null : v);
         const { error } = await sb.from('profiles').update({
           full_name: blank(f.full_name.trim()), headline: blank(f.headline.trim()), nationality: blank(f.nationality), university: blank(f.university), field_of_study: blank(f.field_of_study),
-          grad_year: f.grad_year ? Number(f.grad_year) : null, languages: blank(f.languages), visa_type: blank(f.visa_type), visa_expiry: blank(f.visa_expiry), career_goal: blank(f.career_goal),
+          grad_year: f.grad_year ? Number(f.grad_year) : null, languages: blank(formatLanguages(f.languages)), visa_type: blank(f.visa_type), visa_expiry: blank(f.visa_expiry), career_goal: blank(f.career_goal),
           home_bts_station: blank(f.home_bts_station), home_mrt_station: blank(f.home_mrt_station), desired_salary_min: f.desired_salary_min ? Number(f.desired_salary_min) : null,
-          skills: f.skills.split(',').map(s => s.trim()).filter(Boolean).slice(0, 20), preferred_industries: f.preferred_industries
+          skills: f.skills.map(s => s.trim()).filter(Boolean).slice(0, 20), preferred_industries: f.preferred_industries
         }).eq('id', profile.id);
         if (error) throw error;
         await onSaved(); setEditing(false); setMsg({ tone: 'good', text: 'Profile saved to your account.' });
@@ -63,16 +66,16 @@ export function createStudent(React, ui) {
       h('div', { className: 'pd-grid' },
         h(ui.Field, { id: 'sp-name', label: 'Full name' }, h(ui.Input, { id: 'sp-name', value: f.full_name, onChange: set('full_name'), required: true, maxLength: 120 })),
         h(ui.Field, { id: 'sp-headline', label: 'Headline' }, h(ui.Input, { id: 'sp-headline', value: f.headline, onChange: set('headline'), maxLength: 160, placeholder: 'e.g. Marketing grad who loves data' })),
-        h(ui.Field, { id: 'sp-nat', label: 'Nationality' }, h(ui.Input, { id: 'sp-nat', value: f.nationality, onChange: set('nationality') })),
-        h(ui.Field, { id: 'sp-uni', label: 'University' }, h(ui.Input, { id: 'sp-uni', value: f.university, onChange: set('university') })),
-        h(ui.Field, { id: 'sp-field', label: 'Field of study' }, h(ui.Input, { id: 'sp-field', value: f.field_of_study, onChange: set('field_of_study') })),
-        h(ui.Field, { id: 'sp-year', label: 'Graduation year' }, h(ui.Input, { id: 'sp-year', type: 'number', min: 1980, max: 2100, value: f.grad_year, onChange: set('grad_year') })),
-        h(ui.Field, { id: 'sp-lang', label: 'Languages' }, h(ui.Input, { id: 'sp-lang', value: f.languages, onChange: set('languages') })),
-        h(ui.Field, { id: 'sp-skills', label: 'Skills', hint: 'Comma separated' }, h(ui.Input, { id: 'sp-skills', value: f.skills, onChange: set('skills'), placeholder: 'Canva, Excel, Python' })),
+        h(ui.Field, { id: 'sp-nat', label: 'Nationality' }, h(PickOne, { id: 'sp-nat', value: f.nationality, onChange: set('nationality'), groups: NATIONALITY_GROUPS, placeholder: 'Choose your nationality…', maxLength: 60 })),
+        h(ui.Field, { id: 'sp-uni', label: 'University' }, h(PickOne, { id: 'sp-uni', value: f.university, onChange: set('university'), groups: UNIVERSITIES, placeholder: 'Choose your university…', otherLabel: 'Other university (type it)' })),
+        h(ui.Field, { id: 'sp-field', label: 'Field of study' }, h(PickOne, { id: 'sp-field', value: f.field_of_study, onChange: set('field_of_study'), groups: FIELDS, placeholder: 'Choose your field…', otherLabel: 'Other field (type it)' })),
+        h(ui.Field, { id: 'sp-year', label: 'Graduation year', hint: 'Still studying? Pick your expected year.' }, h(ui.Select, { id: 'sp-year', value: String(f.grad_year || ''), onChange: set('grad_year'), options: YEARS, placeholder: 'Choose a year…' })),
+        h(ui.Field, { id: 'sp-lang-0', label: 'Languages' }, h(LanguagePicker, { id: 'sp-lang', value: f.languages, onChange: set('languages') })),
+        h(ui.Field, { id: 'sp-skills', label: 'Skills', hint: 'Pick from the list or type your own (up to 20).' }, h(PickMany, { id: 'sp-skills', value: f.skills, onChange: set('skills'), groups: SKILL_GROUPS, max: 20 })),
         h(ui.Field, { id: 'sp-bts', label: 'Home BTS station' }, h(ui.Select, { id: 'sp-bts', value: f.home_bts_station, onChange: set('home_bts_station'), options: BTS, placeholder: 'None' })),
         h(ui.Field, { id: 'sp-mrt', label: 'Home MRT station' }, h(ui.Select, { id: 'sp-mrt', value: f.home_mrt_station, onChange: set('home_mrt_station'), options: MRT, placeholder: 'None' })),
         h(ui.Field, { id: 'sp-sal', label: 'Minimum salary wanted (THB)' }, h(ui.Input, { id: 'sp-sal', type: 'number', min: 0, value: f.desired_salary_min, onChange: set('desired_salary_min') })),
-        h(ui.Field, { id: 'sp-visa', label: 'Current visa' }, h(ui.Input, { id: 'sp-visa', value: f.visa_type, onChange: set('visa_type'), placeholder: 'e.g. ED Plus' })),
+        h(ui.Field, { id: 'sp-visa', label: 'Current visa' }, h(PickOne, { id: 'sp-visa', value: f.visa_type, onChange: set('visa_type'), groups: VISAS, placeholder: 'Choose your visa…', otherLabel: 'Other visa (type it)', maxLength: 60 })),
         h(ui.Field, { id: 'sp-exp', label: 'Visa expiry' }, h(ui.Input, { id: 'sp-exp', type: 'date', value: f.visa_expiry, onChange: set('visa_expiry') })),
         h(ui.Field, { id: 'sp-goal', label: 'Career goal' }, h(ui.Input, { id: 'sp-goal', value: f.career_goal, onChange: set('career_goal'), maxLength: 300 }))),
       h('fieldset', { className: 'pd-industries' }, h('legend', null, 'Industries'),
