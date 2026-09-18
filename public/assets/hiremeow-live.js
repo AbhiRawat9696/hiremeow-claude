@@ -76,6 +76,27 @@ async function askClaude(question,history,signal){
   return {notice:'Live chat is temporarily unavailable. Showing saved guidance instead.'};
  }finally{signal?.removeEventListener('abort',stop);}
 }
+// ---- Visa questions: the n8n workflow (it cites the official MFA page) ----
+// Falls back to the normal chat whenever it is off, refuses, or fails.
+const VISA_RE=/\b(visa|work permit|workpermit|non-?b\b|non-?ed\b|ed plus|ltr\b|smart visa|immigration|work authoris|work authoriz|re-?entry permit|tm\s?30|90[- ]day report|sponsorship|sponsor my|extension of stay)\b/i;
+export const looksLikeVisaQuestion=text=>VISA_RE.test(String(text||''));
+let visaStatusPromise=null;
+export function getVisaStatus(){
+ if(!visaStatusPromise){
+  if(typeof window==='undefined'||inClaude())visaStatusPromise=Promise.resolve({available:false});
+  else visaStatusPromise=(async()=>{try{const r=await fetch('/api/visa/status',{cache:'no-store',headers:await authHeaders(),signal:AbortSignal.timeout(5000)});return r.ok?await r.json():{available:false};}catch{return {available:false};}})();
+ }
+ return visaStatusPromise;
+}
+async function askVisaWorkflow(question,history,signal){
+ const turns=conversationMessages(history,question).slice(0,-1).slice(-8);
+ const response=await fetch('/api/visa',{method:'POST',headers:{'Content-Type':'application/json',...await authHeaders()},body:JSON.stringify({message:question.slice(0,8000),history:turns}),signal:AbortSignal.any([signal||new AbortController().signal,AbortSignal.timeout(50000)])});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||!data.text)throw new Error(data.error||'The visa assistant is unavailable.');
+ const body=clean(String(data.text).trim());
+ return {title:'HireMeow · visa guidance',paragraphs:[body],blocks:[{text:body,citations:[]}],live:true,searched:false,sources:[]};
+}
+
 export async function askHireMeow(question,history,options={},signal){
  let notice;
  if(inClaude()){
@@ -83,6 +104,12 @@ export async function askHireMeow(question,history,options={},signal){
   if(r.answer)return r.answer;
   notice=r.notice;
  }else{
+  if(looksLikeVisaQuestion(question)){
+   try{
+    const visa=await getVisaStatus();
+    if(visa.available)return await askVisaWorkflow(question,history,signal);
+   }catch(e){if(signal?.aborted)throw e;/* fall through to the normal chat */}
+  }
   const status=await getChatStatus();
   if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   notice=status.available?null:status.signInRequired?'Sign in to get live AI answers. Here is the relevant saved guidance.':'Live AI and web search are not connected yet. Here is the relevant saved guidance.';
