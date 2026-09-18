@@ -60,6 +60,9 @@ Copy `.env.example` to `.env` for local development. In Vercel, set the same nam
 | `STRIPE_WEBHOOK_SECRET` | for Meow Pool | `whsec_…` from the webhook endpoint |
 | `MEOW_POOL_PRICE_THB` | no | Defaults to `3000` |
 | `APP_URL` | recommended | Public URL for Stripe redirects |
+| `N8N_WEBHOOK_URL` | for visa chat | Production webhook URL of the HireMeow n8n workflow (server only) |
+| `N8N_WEBHOOK_HEADER` | no | Auth header name, defaults to `X-HireMeow-Key` |
+| `N8N_WEBHOOK_KEY` | for visa chat | The Header Auth secret (server only, never in browser code) |
 | `CRON_SECRET` | yes on Vercel | Vercel Cron sends it as `Authorization: Bearer …` |
 | `GHOSTING_DAYS` | no | Defaults to `5` |
 | `NEWS_PROVIDER` / `NEWS_API_KEY` | no | `mock` (default) or `newsapi` |
@@ -93,6 +96,17 @@ All AI runs on the server with `OPENAI_API_KEY` (model `OPENAI_MODEL`, default `
 - **Meow Copilot** for companies: ✨ Write with AI in the job editor (JD + salary suggestion + FAQ), AI Screener (HireMeow applicants plus up to 500 uploaded PDF/.txt resumes, Top 20 + CSV) and Talent Pool Miner. Screening prompts exclude nationality, age, gender, religion and photos.
 - Salary numbers come from published HireMeow jobs; with fewer than 3 matches the UI labels them as an AI estimate.
 - `server/skills.js` holds every AI tool (`POST /api/skill {skill, input}`), each with a strict JSON schema. Tests: `tests/agent.test.mjs`, `tests/skills.test.mjs`, `supabase/test/rls-test-3.sql`.
+### Visa answers through n8n (optional)
+
+When `N8N_WEBHOOK_URL` and `N8N_WEBHOOK_KEY` are set, visa questions in Ask HireMeow go to the n8n workflow instead of the built-in chat, because that workflow reads the official MFA page and cites it.
+
+- The browser calls `POST /api/visa` on this site; only the server knows the webhook URL and secret (`server/n8n.js`).
+- Sign-in is required, 10 requests per user per minute, question up to 8,000 characters, history limited to the last 8 messages.
+- `GET /api/visa/status` reports `{ available, signInRequired }`.
+- The client only routes a question there when it matches the visa keywords in `public/assets/hiremeow-live.js`; anything else, and any failure, falls back to the normal chat and then to the saved guidance.
+- Errors are mapped so users never see a raw upstream failure: a refused secret and `AI_UNAVAILABLE` both become 503, an empty answer becomes 502.
+- Tests: `tests/visa.test.mjs`.
+
 - Not built yet (need extra accounts): paid Auto Apply / Recruiter Copilot plans (Stripe billing), LINE / WhatsApp chat, interview scheduling with real invites, video resume analysis.
 
 ## 5. Deploy to Vercel
