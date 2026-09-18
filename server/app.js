@@ -6,6 +6,7 @@ import { handleChat } from './worker.js';
 import { generate, rateLimit } from './ai.js';
 import { runAgent, createAgentTools, confirmAction } from './agent.js';
 import { runSkill, jobChat, SKILL_DEFS } from './skills.js';
+import { askVisa, hasN8n } from './n8n.js';
 import { createPoolCheckout, verifyStripeEvent, retrieveCheckout } from './stripe.js';
 import { runGhostingCheck } from './jobs/ghosting.js';
 import { runCompanyHealth } from './jobs/company-health.js';
@@ -92,6 +93,19 @@ export async function handle(request, rawEnv, deps = {}) {
         rateLimit('ai:' + u.id);
         const body = await readJson(request, 120000);
         return json(await generate(env, { messages: body.messages, format: body.format === 'json' ? 'json' : 'text' }, fetchImpl));
+      }
+
+      case '/api/visa/status': {
+        const u = await user().catch(() => null);
+        const ready = hasN8n(env);
+        return json({ available: ready && Boolean(u || env.localPreview), signInRequired: ready && !u && !env.localPreview });
+      }
+      case '/api/visa': {
+        if (method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+        const u = env.localPreview && !token ? { id: 'local' } : await requireUser();
+        rateLimit('visa:' + u.id, 10);
+        const body = await readJson(request, 40000);
+        return json(await askVisa(env, { message: body.message, history: body.history }, fetchImpl));
       }
 
       case '/api/agent/status': {
