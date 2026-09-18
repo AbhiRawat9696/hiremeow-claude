@@ -16,6 +16,9 @@ export function readEnv(source = (typeof process !== 'undefined' ? process.env :
     newsProvider: trim(e.NEWS_PROVIDER) || 'mock',
     newsApiKey: trim(e.NEWS_API_KEY),
     ghostingDays: Number(e.GHOSTING_DAYS) > 0 ? Math.round(Number(e.GHOSTING_DAYS)) : 5,
+    n8nUrl: trim(e.N8N_WEBHOOK_URL),
+    n8nHeader: trim(e.N8N_WEBHOOK_HEADER) || 'X-HireMeow-Key',
+    n8nKey: trim(e.N8N_WEBHOOK_KEY),
     localPreview: e.HIREMEOW_LOCAL_PREVIEW === '1',
     raw: e
   };
